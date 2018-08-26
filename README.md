@@ -13,3 +13,6 @@ This library implements a number of different methods to obtain the subsets&mdas
 - [ ] anytime
 
 ## License
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLibbum%2Felm-partition.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLibbum%2Felm-partition?ref=badge_large)
