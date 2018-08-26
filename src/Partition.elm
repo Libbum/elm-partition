@@ -48,7 +48,7 @@ bruteForce =
 
     allPartitions [ 3, 15 ] == [ ( [ 3, 15 ], [] ), ( [ 3 ], [ 15 ] ), ( [ 15 ], [ 3 ] ), ( [], [ 3, 15 ] ) ]
 
-    Note that this function scales as `O(2ᴺ)`, where `N` is the length of your list.
+Note that this function scales as `O(2ᴺ)`, where `N` is the length of your list.
 
 -}
 allPartitions : List number -> List ( List number, List number )
