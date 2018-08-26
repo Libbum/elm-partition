@@ -36,6 +36,7 @@ Since all possible partitons must be calculated, this is an `O(2ᴺ)` operation.
     bruteForce (List.range 0 22)
 
 Emits a heap limit allocation failure and sets with smaller lengths take some time to compute.
+So alternate methods are best once your sets get large.
 
 -}
 bruteForce : List number -> ( List number, List number )
