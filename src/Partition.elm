@@ -41,7 +41,7 @@ So alternate methods are best once your sets get large.
 -}
 bruteForce : List number -> ( List number, List number )
 bruteForce =
-    minimumBy objective << allPartitions
+    Maybe.withDefault ( [], [] ) << minimumBy objective << allPartitions
 
 
 {-| Generates all possible partitions of a given set of numbers.
