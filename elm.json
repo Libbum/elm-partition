@@ -3,7 +3,7 @@
     "name": "Libbum/elm-partition",
     "summary": "Partition problem (number partitioning) solvers",
     "license": "BSD-3-Clause",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "exposed-modules": [
         "Partition"
     ],
