@@ -188,5 +188,5 @@ objective ( left, right ) =
 
 -}
 sumOfSets : Partition number -> ( number, number )
-sumOfSets sets =
-    ( List.sum <| first sets, List.sum <| second sets )
+sumOfSets ( left, right ) =
+    ( List.sum <| left, List.sum <| right )
