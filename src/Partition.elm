@@ -61,7 +61,7 @@ This method is best used on small sets where the solution must be accurate.
 
     bruteForce [ 1, 1, 1, 1, 1, 1, 6 ] == ( [ 1, 1, 1, 1, 1, 1 ], [ 6 ] )
 
-A <greedy> method would distribute some ones into the second subset in the above example,
+A [greedy](#greedy) method would distribute some ones into the second subset in the above example,
 but `bruteForce` will obtain the optimal solution.
 
 Since all possible partitons must be calculated, this is an `O(2ᴺ)` operation.
@@ -87,11 +87,11 @@ Let's take a look at few examples:
 
     bruteForce [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
 
-Both of these partitions have <objective> values of `1`, meaning both partitions
+Both of these partitions have [objective](#objective) values of `1`, meaning both partitions
 are equivalent and equally valid.
 
 As your lists get larger the performance of the greedy solution becomes obvious. The
-<bruteForce> method has issues handling lists of length `23`, whereas `greedy`
+[bruteForce](#bruteForce) method has issues handling lists of length `23`, whereas `greedy`
 handles them near instantaneously.
 
     greedy (List.range 0 22) ( [ 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2 ], [ 21, 19, 17, 15, 13, 11, 9, 7, 5, 3, 1, 0 ] )
@@ -117,8 +117,9 @@ greedy sequence =
 --- Helpers
 
 
-{-| Identifies the sum of each list. This is effectively the greedy
-method's objective function.
+{-| For each value in the set, the greedy algorithm checks which subset
+the value should be placed in, such that the objective is minimised.
+We recurse through the list and accumulate the sum of S1 and S2 as we go.
 -}
 greedyMap : GreedyHelper number -> List number -> GreedyHelper number
 greedyMap info sequence =
