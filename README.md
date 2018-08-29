@@ -8,7 +8,7 @@ This library implements a number of different methods to obtain the subsets&mdas
 
 - [x] Brute force method
 - [ ] pseudo-polynomial
-- [ ] greedy
+- [x] greedy
 - [ ] largest differencing
 - [ ] anytime
 
