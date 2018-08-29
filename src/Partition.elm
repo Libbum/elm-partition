@@ -1,5 +1,6 @@
 module Partition exposing
-    ( bruteForce, greedy
+    ( Partition
+    , bruteForce, greedy
     , allPartitions, objective, sumOfSets
     )
 
@@ -8,6 +9,11 @@ which splits a set of numbers _S_ into two subsets, where the sum of these subse
 
 Depending on the algorithm, order of subsets may not be preserved. If order perservation
 is something you require: please file a request in the issue tracker.
+
+
+# Types
+
+@docs Partition
 
 
 # Methods
@@ -26,6 +32,30 @@ import List.Extra exposing (minimumBy, scanl1)
 import Tuple exposing (first, second)
 
 
+
+--- Type Aliases
+
+
+{-| The resultant partition: two balanced subsets of the original set
+-}
+type alias Partition number =
+    ( List number, List number )
+
+
+{-| Since the sums of each set need to be incuded in the greedy algorithm,
+a little helper is used here to simplify the type signature.
+-}
+type alias GreedyHelper number =
+    { s1 : number
+    , s2 : number
+    , partition : Partition number
+    }
+
+
+
+--- Methods
+
+
 {-| Directly partition your set by checking all possible permutations.
 This method is best used on small sets where the solution must be accurate.
 
@@ -42,7 +72,7 @@ Emits a heap limit allocation failure and sets with smaller lengths take some ti
 So alternate methods are best once your sets get large.
 
 -}
-bruteForce : List number -> ( List number, List number )
+bruteForce : List number -> Partition number
 bruteForce =
     Maybe.withDefault ( [], [] ) << minimumBy objective << allPartitions
 
@@ -74,7 +104,7 @@ The downfall of this method occurs when lists are weighted in such a manner that
     greedy [ 1, 1, 1, 1, 1, 1, 6 ] == ( [ 1, 1, 1 ], [ 6, 1, 1, 1 ] )
 
 -}
-greedy : List number -> ( List number, List number )
+greedy : List number -> Partition number
 greedy sequence =
     let
         result =
@@ -83,14 +113,8 @@ greedy sequence =
     result.partition
 
 
-{-| Since the sums of each set need to be incuded, a little helper
-is used here to simplify the type signature.
--}
-type alias GreedyHelper number =
-    { s1 : number
-    , s2 : number
-    , partition : ( List number, List number )
-    }
+
+--- Helpers
 
 
 {-| Identifies the sum of each list. This is effectively the greedy
@@ -117,6 +141,10 @@ greedyMap info sequence =
                 greedyMap { info | s2 = s2new, partition = ( first info.partition, x :: second info.partition ) } xs
 
 
+
+--- Utilities
+
+
 {-| Generates all possible partitions of a given set of numbers.
 
     allPartitions [ 3, 15 ] == [ ( [ 3, 15 ], [] ), ( [ 3 ], [ 15 ] ), ( [ 15 ], [ 3 ] ), ( [], [ 3, 15 ] ) ]
@@ -124,7 +152,7 @@ greedyMap info sequence =
 Note that this function scales as `O(2ᴺ)`, where `N` is the length of your list.
 
 -}
-allPartitions : List number -> List ( List number, List number )
+allPartitions : List number -> List (Partition number)
 allPartitions sequence =
     case sequence of
         [] ->
@@ -148,7 +176,7 @@ Mathematically stated: `min |∑S₁-∑S₂| : S₁,S₂⊂S`.
 These examples are partitions from the same set. The first is a far better solution than the second.
 
 -}
-objective : ( List number, List number ) -> number
+objective : Partition number -> number
 objective ( left, right ) =
     abs (List.sum left - List.sum right)
 
@@ -158,6 +186,6 @@ objective ( left, right ) =
     sumOfSets ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] ) == ( 45, 46 )
 
 -}
-sumOfSets : ( List number, List number ) -> ( number, number )
+sumOfSets : Partition number -> ( number, number )
 sumOfSets sets =
     ( List.sum <| first sets, List.sum <| second sets )
