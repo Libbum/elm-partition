@@ -1,6 +1,6 @@
 module Partition exposing
     ( bruteForce, greedy
-    , allPartitions, objective
+    , allPartitions, objective, sumOfSets
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -17,7 +17,7 @@ is something you require: please file a request in the issue tracker.
 
 # Utilities
 
-@docs allPartitions, objective
+@docs allPartitions, objective, sumOfSets
 
 -}
 
@@ -139,7 +139,7 @@ allPartitions sequence =
 
 
 {-| The objective for our partitioning is to minimise the difference between the sum of each subset.
-Mathematically stated: `min |&sum;S₁-&sum;S₂| : S₁,S₂&sub;S`.
+Mathematically stated: `min |∑S₁-∑S₂| : S₁,S₂⊂S`.
 
     objective ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] ) == 1
 
@@ -151,3 +151,13 @@ These examples are partitions from the same set. The first is a far better solut
 objective : ( List number, List number ) -> number
 objective ( left, right ) =
     abs (List.sum left - List.sum right)
+
+
+{-| Outputs the sum of each subset to validate the quality of a partition.
+
+    sumOfSets ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] ) == ( 45, 46 )
+
+-}
+sumOfSets : ( List number, List number ) -> ( number, number )
+sumOfSets sets =
+    ( List.sum <| first sets, List.sum <| second sets )
