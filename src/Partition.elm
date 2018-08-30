@@ -1,8 +1,8 @@
 module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference
-    , allPartitions, objective, sumOfSets
-    , colourGraph, flippedIndexedComparison, initialiseGraph, insertEdge
+    , allPartitions, objective, sumOfSets, flippedIndexedComparison
+    , colourGraph, initialiseGraph, insertEdge
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -24,7 +24,7 @@ is something you require: please file a request in the issue tracker.
 
 # Utilities
 
-@docs allPartitions, objective, sumOfSets, flippedComparison
+@docs allPartitions, objective, sumOfSets, flippedIndexedComparison
 
 -}
 
