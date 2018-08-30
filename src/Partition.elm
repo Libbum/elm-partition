@@ -1,7 +1,8 @@
 module Partition exposing
     ( Partition
-    , bruteForce, greedy
+    , bruteForce, greedy, largestDifference
     , allPartitions, objective, sumOfSets
+    , colourGraph, flippedIndexedComparison, initialiseGraph, insertEdge
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -18,15 +19,17 @@ is something you require: please file a request in the issue tracker.
 
 # Methods
 
-@docs bruteForce, greedy
+@docs bruteForce, greedy, largestDifference
 
 
 # Utilities
 
-@docs allPartitions, objective, sumOfSets
+@docs allPartitions, objective, sumOfSets, flippedComparison
 
 -}
 
+import Graph exposing (Edge, Graph, Node, fromNodesAndEdges)
+import IntDict
 import List
 import List.Extra exposing (minimumBy, scanl1)
 import Tuple exposing (first, second)
@@ -113,6 +116,69 @@ greedy sequence =
     result.partition
 
 
+{-| The Largest Differencing Method (LDM) orders the input set and
+replaces the largest two values with a difference `|x₁-x₂|`.
+The resultant set is then reordered and the method is repeated until
+one value is left in the list. This value is equal to the _partition difference_
+of the partition.
+
+Time complexity of this method is `O(N log N)`.
+
+-}
+largestDifference : List number -> Graph number number
+largestDifference sequence =
+    let
+        initDelta =
+            List.sortWith flippedIndexedComparison <| List.indexedMap Tuple.pair sequence
+
+        ldm =
+            diffTree { graph = initialiseGraph sequence, delta = initDelta }
+    in
+    ldm.graph
+
+
+diffTree : { graph : Graph number number, delta : List ( Int, number ) } -> { graph : Graph number number, delta : List ( Int, number ) }
+diffTree diff =
+    let
+        sorted =
+            List.sortWith flippedIndexedComparison diff.delta
+    in
+    case sorted of
+        [] ->
+            { diff | delta = [] }
+
+        [ x ] ->
+            { diff | delta = [ x ] }
+
+        ( idx1, one ) :: ( idx2, two ) :: theRest ->
+            let
+                newIdx =
+                    if one > two then
+                        idx1
+
+                    else
+                        idx2
+
+                difference =
+                    abs (one - two)
+            in
+            diffTree
+                { diff
+                    | delta = ( newIdx, difference ) :: theRest
+                    , graph = insertEdge (Edge idx1 idx2 difference) diff.graph
+                }
+
+
+colourGraph : Graph number number -> List (Graph.AcyclicGraph number number)
+colourGraph graph =
+    case Graph.checkAcyclic graph of
+        Ok agraph ->
+            [ agraph ]
+
+        Err err ->
+            []
+
+
 
 --- Helpers
 
@@ -190,3 +256,53 @@ objective ( left, right ) =
 sumOfSets : Partition number -> ( number, number )
 sumOfSets ( left, right ) =
     ( List.sum <| left, List.sum <| right )
+
+
+{-| Sort highest to lowest of a list zipped with indexes
+-}
+flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
+flippedIndexedComparison ( x, left ) ( y, right ) =
+    case compare left right of
+        LT ->
+            GT
+
+        EQ ->
+            EQ
+
+        GT ->
+            LT
+
+
+{-| Generate a graph representation of a set
+-}
+initialiseGraph : List number -> Graph number number
+initialiseGraph sequence =
+    fromNodesAndEdges (sequenceToNodes sequence) []
+
+
+{-| Convert a set into a list of graph Nodes
+-}
+sequenceToNodes : List number -> List (Node number)
+sequenceToNodes =
+    List.indexedMap (\i x -> Node i x)
+
+
+{-| Helper function to insert graph edges on the fly.
+Currently this isn't explicitly an ability of `graph`:
+[graph#19](https://github.com/elm-community/graph/issues/19)
+
+Assumes nodes are already in the graph and will have undefined
+behaviour if not.
+
+-}
+insertEdge : Edge e -> Graph n e -> Graph n e
+insertEdge edge =
+    Graph.update edge.from
+        (\maybeCtx ->
+            case maybeCtx of
+                Nothing ->
+                    Nothing
+
+                Just ctx ->
+                    Just { ctx | outgoing = IntDict.insert edge.to edge.label ctx.outgoing }
+        )
