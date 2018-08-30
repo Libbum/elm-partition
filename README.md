@@ -1,4 +1,4 @@
-# elm-partition
+<center><img src="logo/logo.png" alt="elm-partition"></center>
 
 The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task which splits a set of numbers _S_ into two subsets, where the sum of these subsets is equal.
 
