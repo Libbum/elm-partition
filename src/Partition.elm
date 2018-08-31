@@ -44,16 +44,6 @@ type alias Partition number =
     ( List number, List number )
 
 
-{-| Since the sums of each set need to be incuded in the greedy algorithm,
-a little helper is used here to simplify the type signature.
--}
-type alias GreedyHelper number =
-    { s1 : number
-    , s2 : number
-    , partition : Partition number
-    }
-
-
 {-| The LDM method requires us to reduce a list, whilst keeping track of positions
 (`delta(index, value)`). Then, from that reduction, a `graph` is built, traversed
 and ultimately enables the construction of our balanced partition.
@@ -69,12 +59,13 @@ type alias LDMSolver number =
 {-| Directly partition your set by checking all possible permutations.
 This method is best used on small sets where the solution must be accurate.
 
-    bruteForce [ 1, 1, 1, 1, 1, 1, 6 ] == ( [ 1, 1, 1, 1, 1, 1 ], [ 6 ] )
+    bruteForce [ 4, 5, 7, 6, 8 ] == ( [ 4, 5, 6 ], [ 7, 8 ] )
 
-A [greedy](#greedy) method would distribute some ones into the second subset in the above example,
-but `bruteForce` will obtain the optimal solution.
+This solution is a perfect partition. Since all possible partitons must be calculated,
+this is an `O(2ᴺ)` operation. The [greedy](#greedy) method (for example) will partition faster,
+but yields an [objective](#objective) of `4`: missing the optimal partition.
 
-Since all possible partitons must be calculated, this is an `O(2ᴺ)` operation.
+The space scaling is quite an issue for this method as well.
 
     bruteForce (List.range 0 22)
 
@@ -93,7 +84,7 @@ into the sublist that minimises the objective at the current point in time.
 The greedy method is fast and can handle large lists, but can be quite inaccurate.
 Let's take a look at few examples:
 
-    greedy [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 11, 12, 3, 15, 5 ], [ 2, 5, 7, 9, 22 ] )
+    greedy [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 2, 3, 5, 9, 12, 15 ], [ 5, 7, 11, 22 ] )
 
     bruteForce [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
 
@@ -104,23 +95,20 @@ As your lists get larger the performance of the greedy solution becomes obvious.
 [bruteForce](#bruteForce) method has issues handling lists of length `23`, whereas `greedy`
 handles them near instantaneously.
 
-    greedy (List.range 0 22) ( [ 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2 ], [ 21, 19, 17, 15, 13, 11, 9, 7, 5, 3, 1, 0 ] )
+    greedy (List.range 0 22) == ( [ 0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21 ], [ 2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22 ] )
 
 In fact, `List.range 0 500000` is really no problem.
 
 The downfall of this method occurs when lists are weighted in such a manner that seems fine initially
 (to the algorithm), but is toppled at the end of the list.
 
-    greedy [ 1, 1, 1, 1, 1, 1, 6 ] == ( [ 1, 1, 1 ], [ 6, 1, 1, 1 ] )
+    greedy [ 4, 5, 7, 6, 8 ] == ( [ 6, 7 ], [ 4, 5, 8 ] )
 
 -}
 greedy : List number -> Partition number
 greedy sequence =
-    let
-        result =
-            greedyMap { s1 = 0, s2 = 0, partition = ( [], [] ) } sequence
-    in
-    result.partition
+    List.sortWith flippedComparison sequence
+        |> greedyRecurse ( [], [] )
 
 
 {-| The Largest Differencing Method (LDM) orders the input set and
@@ -163,29 +151,22 @@ largestDifference sequence =
 --- Helpers
 
 
-{-| For each value in the set, the greedy algorithm checks which subset
-the value should be placed in, such that the objective is minimised.
-We recurse through the list and accumulate the sum of S1 and S2 as we go.
+{-| Starting with an empty partition, and a list sorted higest
+to lowest, identify which subset currently has the lowest sum.
+Place the head of the list in that bucket and repeat.
 -}
-greedyMap : GreedyHelper number -> List number -> GreedyHelper number
-greedyMap info sequence =
-    case sequence of
+greedyRecurse : Partition number -> List number -> Partition number
+greedyRecurse ( left, right ) sorted =
+    case sorted of
         [] ->
-            info
+            ( left, right )
 
         x :: xs ->
-            let
-                s1new =
-                    info.s1 + x
-
-                s2new =
-                    info.s2 + x
-            in
-            if abs (s1new - info.s2) < abs (s2new - info.s1) then
-                greedyMap { info | s1 = s1new, partition = ( x :: first info.partition, second info.partition ) } xs
+            if List.sum left < List.sum right then
+                greedyRecurse ( x :: left, right ) xs
 
             else
-                greedyMap { info | s2 = s2new, partition = ( first info.partition, x :: second info.partition ) } xs
+                greedyRecurse ( left, x :: right ) xs
 
 
 {-| The workhorse of the LDM method. Identify Delta whilst building a
@@ -291,6 +272,21 @@ separate sequence =
 -}
 flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
 flippedIndexedComparison ( x, left ) ( y, right ) =
+    case compare left right of
+        LT ->
+            GT
+
+        EQ ->
+            EQ
+
+        GT ->
+            LT
+
+
+{-| Sort highest to lowest
+-}
+flippedComparison : comparable -> comparable -> Order
+flippedComparison left right =
     case compare left right of
         LT ->
             GT
