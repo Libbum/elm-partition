@@ -1,7 +1,7 @@
 module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference
-    , allPartitions, objective, sumOfSets
+    , empty, allPartitions, objective, sumOfSets
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -23,7 +23,7 @@ is something you require: please file a request in the issue tracker.
 
 # Utilities
 
-@docs allPartitions, objective, sumOfSets
+@docs empty, allPartitions, objective, sumOfSets
 
 -}
 
@@ -75,7 +75,7 @@ So alternate methods are best once your sets get large.
 -}
 bruteForce : List number -> Partition number
 bruteForce =
-    Maybe.withDefault ( [], [] ) << minimumBy objective << allPartitions
+    Maybe.withDefault empty << minimumBy objective << allPartitions
 
 
 {-| Traverse the list once i.e. `O(N)`, chosing to place the current value
@@ -108,7 +108,7 @@ The downfall of this method occurs when lists are weighted in such a manner that
 greedy : List number -> Partition number
 greedy sequence =
     List.sortWith flippedComparison sequence
-        |> greedyRecurse ( [], [] )
+        |> greedyRecurse empty
 
 
 {-| The Largest Differencing Method (LDM) orders the input set and
@@ -255,7 +255,7 @@ separate : List number -> Partition number
 separate sequence =
     case sequence of
         [] ->
-            ( [], [] )
+            empty
 
         [ one ] ->
             ( [ one ], [] )
@@ -344,6 +344,13 @@ mergeEdges from to outgoingLabel incomingLabel =
 --- Utilities
 
 
+{-| An empty partition constructor
+-}
+empty : Partition number
+empty =
+    ( [], [] )
+
+
 {-| Generates all possible partitions of a given set of numbers.
 
     allPartitions [ 3, 15 ] == [ ( [ 3, 15 ], [] ), ( [ 3 ], [ 15 ] ), ( [ 15 ], [ 3 ] ), ( [], [ 3, 15 ] ) ]
@@ -355,7 +362,7 @@ allPartitions : List number -> List (Partition number)
 allPartitions sequence =
     case sequence of
         [] ->
-            [ ( [], [] ) ]
+            [ empty ]
 
         x :: xs ->
             let
