@@ -9,7 +9,7 @@ This library implements a number of different methods to obtain the subsets&mdas
 - [x] Brute force method
 - [ ] pseudo-polynomial
 - [x] greedy
-- [ ] largest differencing
+- [x] largest differencing
 - [ ] anytime
 
 ## License
