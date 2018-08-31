@@ -1,8 +1,7 @@
 module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference
-    , allPartitions, objective, sumOfSets, flippedIndexedComparison
-    , colourGraph, initialiseGraph, insertEdge
+    , allPartitions, objective, sumOfSets
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -24,11 +23,11 @@ is something you require: please file a request in the issue tracker.
 
 # Utilities
 
-@docs allPartitions, objective, sumOfSets, flippedIndexedComparison
+@docs allPartitions, objective, sumOfSets
 
 -}
 
-import Graph exposing (Edge, Graph, Node, fromNodesAndEdges)
+import Graph exposing (Edge, Graph, Node)
 import IntDict
 import List
 import List.Extra exposing (minimumBy, scanl1)
@@ -53,6 +52,14 @@ type alias GreedyHelper number =
     , s2 : number
     , partition : Partition number
     }
+
+
+{-| The LDM method requires us to reduce a list, whilst keeping track of positions
+(`delta(index, value)`). Then, from that reduction, a `graph` is built, traversed
+and ultimately enables the construction of our balanced partition.
+-}
+type alias LDMSolver number =
+    { graph : Graph number number, delta : List ( Int, number ) }
 
 
 
@@ -122,61 +129,30 @@ The resultant set is then reordered and the method is repeated until
 one value is left in the list. This value is equal to the _partition difference_
 of the partition.
 
-Time complexity of this method is `O(N log N)`.
+From this differencing, a graph is generated which identifies the correct path
+to follow to appropreately partition the original set.
+
+Time complexity of this method is `O(N log N)`. List size limitations are therefore in
+time moreso than space. In terms of optimality, the method sits between
+[bruteForce](#bruteForce) and [greedy](#greedy):
+
+    seq = [8,7,6,5,4]
+    bruteForce seq |> objective == 0
+    largestDifference seq |> objective == 2
+    greedy seq |> objective == 4
 
 -}
-largestDifference : List number -> Graph number number
+largestDifference : List number -> Partition number
 largestDifference sequence =
     let
         initDelta =
             List.sortWith flippedIndexedComparison <| List.indexedMap Tuple.pair sequence
 
         ldm =
-            diffTree { graph = initialiseGraph sequence, delta = initDelta }
+            kkHeuristic { graph = initialiseGraph sequence, delta = initDelta }
     in
-    ldm.graph
-
-
-diffTree : { graph : Graph number number, delta : List ( Int, number ) } -> { graph : Graph number number, delta : List ( Int, number ) }
-diffTree diff =
-    let
-        sorted =
-            List.sortWith flippedIndexedComparison diff.delta
-    in
-    case sorted of
-        [] ->
-            { diff | delta = [] }
-
-        [ x ] ->
-            { diff | delta = [ x ] }
-
-        ( idx1, one ) :: ( idx2, two ) :: theRest ->
-            let
-                newIdx =
-                    if one > two then
-                        idx1
-
-                    else
-                        idx2
-
-                difference =
-                    abs (one - two)
-            in
-            diffTree
-                { diff
-                    | delta = ( newIdx, difference ) :: theRest
-                    , graph = insertEdge (Edge idx1 idx2 difference) diff.graph
-                }
-
-
-colourGraph : Graph number number -> List (Graph.AcyclicGraph number number)
-colourGraph graph =
-    case Graph.checkAcyclic graph of
-        Ok agraph ->
-            [ agraph ]
-
-        Err err ->
-            []
+    Graph.symmetricClosure mergeEdges ldm.graph
+        |> colourGraph
 
 
 
@@ -206,6 +182,162 @@ greedyMap info sequence =
 
             else
                 greedyMap { info | s2 = s2new, partition = ( first info.partition, x :: second info.partition ) } xs
+
+
+{-| The workhorse of the LDM method. Identify Delta whilst building a
+graph of the optimal parth to partition.
+-}
+kkHeuristic : LDMSolver number -> LDMSolver number
+kkHeuristic diff =
+    let
+        sorted =
+            List.sortWith flippedIndexedComparison diff.delta
+    in
+    case sorted of
+        [] ->
+            { diff | delta = [] }
+
+        [ x ] ->
+            { diff | delta = [ x ] }
+
+        ( idx1, one ) :: ( idx2, two ) :: theRest ->
+            let
+                newIdx =
+                    if one > two then
+                        idx1
+
+                    else
+                        idx2
+
+                difference =
+                    abs (one - two)
+            in
+            kkHeuristic
+                { diff
+                    | delta = ( newIdx, difference ) :: theRest
+                    , graph = insertEdge (Edge idx1 idx2 difference) diff.graph
+                }
+
+
+{-| Select a root node and traverse the graph to identify the structure to color.
+Separate the resultant set using red/black colouring.
+-}
+colourGraph : Graph number number -> Partition number
+colourGraph graph =
+    Graph.guidedDfs Graph.alongOutgoingEdges (Graph.onDiscovery (::)) (findRoot graph) [] graph
+        |> Tuple.first
+        |> List.map (.node >> .label)
+        |> separate
+
+
+{-| Check each node in the graph for exactly two edges.
+Since our graph will be a spanning tree by the time this function
+is called, we will identify two possible root candidates.
+We take the first since it doesn't matter which direction we traverse.
+-}
+findRoot : Graph number number -> List Int
+findRoot graph =
+    Graph.nodeIds graph
+        |> List.map (\node -> identifyBound node graph)
+        |> List.filter ((<=) 0)
+        |> List.take 1
+
+
+{-| Check if the current node has two connected edges.
+If so, this should be one of our 'roots' from which to traverse
+the graph.
+
+Assumes the graph is an undirected spanning tree.
+
+-}
+identifyBound : Graph.NodeId -> Graph number number -> Graph.NodeId
+identifyBound node graph =
+    Graph.get node graph
+        |> Maybe.map
+            (\ctx ->
+                if IntDict.size ctx.incoming + IntDict.size ctx.outgoing == 2 then
+                    ctx.node.id
+
+                else
+                    -1
+            )
+        |> Maybe.withDefault -1
+
+
+{-| Split a list by red/black colouring
+-}
+separate : List number -> Partition number
+separate sequence =
+    case sequence of
+        [] ->
+            ( [], [] )
+
+        [ one ] ->
+            ( [ one ], [] )
+
+        one :: two :: xs ->
+            let
+                theRest =
+                    separate xs
+            in
+            ( one :: first theRest, two :: second theRest )
+
+
+{-| Sort highest to lowest of a list zipped with indexes
+-}
+flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
+flippedIndexedComparison ( x, left ) ( y, right ) =
+    case compare left right of
+        LT ->
+            GT
+
+        EQ ->
+            EQ
+
+        GT ->
+            LT
+
+
+{-| Generate a graph representation of a set
+-}
+initialiseGraph : List number -> Graph number number
+initialiseGraph sequence =
+    Graph.fromNodesAndEdges (sequenceToNodes sequence) []
+
+
+{-| Convert a set into a list of graph Nodes
+-}
+sequenceToNodes : List number -> List (Node number)
+sequenceToNodes =
+    List.indexedMap (\i x -> Node i x)
+
+
+{-| Helper function to insert graph edges on the fly.
+Currently this isn't explicitly an ability of `graph`:
+[graph#19](https://github.com/elm-community/graph/issues/19)
+
+Assumes nodes are already in the graph and will have undefined
+behaviour if not.
+
+-}
+insertEdge : Edge e -> Graph n e -> Graph n e
+insertEdge edge =
+    Graph.update edge.from
+        (\maybeCtx ->
+            case maybeCtx of
+                Nothing ->
+                    Nothing
+
+                Just ctx ->
+                    Just { ctx | outgoing = IntDict.insert edge.to edge.label ctx.outgoing }
+        )
+
+
+{-| Simply take the outgoing label as our label for both edges
+-}
+mergeEdges : Graph.NodeId -> Graph.NodeId -> e -> e -> e
+mergeEdges from to outgoingLabel incomingLabel =
+    outgoingLabel
 
 
 
@@ -256,53 +388,3 @@ objective ( left, right ) =
 sumOfSets : Partition number -> ( number, number )
 sumOfSets ( left, right ) =
     ( List.sum <| left, List.sum <| right )
-
-
-{-| Sort highest to lowest of a list zipped with indexes
--}
-flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
-flippedIndexedComparison ( x, left ) ( y, right ) =
-    case compare left right of
-        LT ->
-            GT
-
-        EQ ->
-            EQ
-
-        GT ->
-            LT
-
-
-{-| Generate a graph representation of a set
--}
-initialiseGraph : List number -> Graph number number
-initialiseGraph sequence =
-    fromNodesAndEdges (sequenceToNodes sequence) []
-
-
-{-| Convert a set into a list of graph Nodes
--}
-sequenceToNodes : List number -> List (Node number)
-sequenceToNodes =
-    List.indexedMap (\i x -> Node i x)
-
-
-{-| Helper function to insert graph edges on the fly.
-Currently this isn't explicitly an ability of `graph`:
-[graph#19](https://github.com/elm-community/graph/issues/19)
-
-Assumes nodes are already in the graph and will have undefined
-behaviour if not.
-
--}
-insertEdge : Edge e -> Graph n e -> Graph n e
-insertEdge edge =
-    Graph.update edge.from
-        (\maybeCtx ->
-            case maybeCtx of
-                Nothing ->
-                    Nothing
-
-                Just ctx ->
-                    Just { ctx | outgoing = IntDict.insert edge.to edge.label ctx.outgoing }
-        )
