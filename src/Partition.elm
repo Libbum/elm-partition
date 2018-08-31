@@ -268,21 +268,6 @@ separate sequence =
             ( one :: first theRest, two :: second theRest )
 
 
-{-| Sort highest to lowest of a list zipped with indexes
--}
-flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
-flippedIndexedComparison ( x, left ) ( y, right ) =
-    case compare left right of
-        LT ->
-            GT
-
-        EQ ->
-            EQ
-
-        GT ->
-            LT
-
-
 {-| Sort highest to lowest
 -}
 flippedComparison : comparable -> comparable -> Order
@@ -296,6 +281,13 @@ flippedComparison left right =
 
         GT ->
             LT
+
+
+{-| Sort highest to lowest of a list zipped with indexes
+-}
+flippedIndexedComparison : ( a, comparable ) -> ( a, comparable ) -> Order
+flippedIndexedComparison ( x, left ) ( y, right ) =
+    flippedComparison left right
 
 
 {-| Generate a graph representation of a set
@@ -369,7 +361,8 @@ allPartitions sequence =
                 sub_sequence =
                     allPartitions xs
             in
-            List.map (\w -> ( x :: first w, second w )) sub_sequence ++ List.map (\w -> ( first w, x :: second w )) sub_sequence
+            List.map (\w -> ( x :: first w, second w )) sub_sequence
+                ++ List.map (\w -> ( first w, x :: second w )) sub_sequence
 
 
 {-| The objective for our partitioning is to minimise the difference between the sum of each subset.
