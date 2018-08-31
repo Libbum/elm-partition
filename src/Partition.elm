@@ -146,10 +146,14 @@ largestDifference : List number -> Partition number
 largestDifference sequence =
     let
         initDelta =
-            List.sortWith flippedIndexedComparison <| List.indexedMap Tuple.pair sequence
+            List.indexedMap Tuple.pair sequence
+                |> List.sortWith flippedIndexedComparison
 
         ldm =
-            kkHeuristic { graph = initialiseGraph sequence, delta = initDelta }
+            kkHeuristic
+                { graph = initialiseGraph sequence
+                , delta = initDelta
+                }
     in
     Graph.symmetricClosure mergeEdges ldm.graph
         |> colourGraph
@@ -239,7 +243,7 @@ findRoot : Graph number number -> List Int
 findRoot graph =
     Graph.nodeIds graph
         |> List.map (\node -> identifyBound node graph)
-        |> List.filter ((<=) 0)
+        |> List.filterMap identity
         |> List.take 1
 
 
@@ -250,18 +254,18 @@ the graph.
 Assumes the graph is an undirected spanning tree.
 
 -}
-identifyBound : Graph.NodeId -> Graph number number -> Graph.NodeId
+identifyBound : Graph.NodeId -> Graph number number -> Maybe Graph.NodeId
 identifyBound node graph =
     Graph.get node graph
         |> Maybe.map
             (\ctx ->
                 if IntDict.size ctx.incoming + IntDict.size ctx.outgoing == 2 then
-                    ctx.node.id
+                    Just ctx.node.id
 
                 else
-                    -1
+                    Nothing
             )
-        |> Maybe.withDefault -1
+        |> Maybe.withDefault Nothing
 
 
 {-| Split a list by red/black colouring
