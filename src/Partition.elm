@@ -45,11 +45,11 @@ type alias Partition number =
 
 
 {-| The LDM method requires us to reduce a list, whilst keeping track of positions
-(`delta(index, value)`). Then, from that reduction, a `graph` is built, traversed
-and ultimately enables the construction of our balanced partition.
+(`delta(index, value)`). Then, from that reduction, a graph is built with each value
+in the set as nodes, connected via edges which are identified here.
 -}
 type alias LDMSolver number =
-    { graph : Graph number number, delta : List ( Int, number ) }
+    { delta : List ( Int, number ), edges : List (Edge number) }
 
 
 
@@ -139,11 +139,12 @@ largestDifference sequence =
 
         ldm =
             kkHeuristic
-                { graph = initialiseGraph sequence
+                { edges = []
                 , delta = initDelta
                 }
     in
-    Graph.symmetricClosure mergeEdges ldm.graph
+    Graph.fromNodesAndEdges (sequenceToNodes sequence) ldm.edges
+        |> Graph.symmetricClosure mergeEdges
         |> colourGraph
 
 
@@ -200,7 +201,7 @@ kkHeuristic diff =
             kkHeuristic
                 { diff
                     | delta = ( newIdx, difference ) :: theRest
-                    , graph = insertEdge (Edge idx1 idx2 difference) diff.graph
+                    , edges = Edge idx1 idx2 difference :: diff.edges
                 }
 
 
@@ -290,39 +291,11 @@ flippedIndexedComparison ( x, left ) ( y, right ) =
     flippedComparison left right
 
 
-{-| Generate a graph representation of a set
--}
-initialiseGraph : List number -> Graph number number
-initialiseGraph sequence =
-    Graph.fromNodesAndEdges (sequenceToNodes sequence) []
-
-
 {-| Convert a set into a list of graph Nodes
 -}
 sequenceToNodes : List number -> List (Node number)
 sequenceToNodes =
     List.indexedMap (\i x -> Node i x)
-
-
-{-| Helper function to insert graph edges on the fly.
-Currently this isn't explicitly an ability of `graph`:
-[graph#19](https://github.com/elm-community/graph/issues/19)
-
-Assumes nodes are already in the graph and will have undefined
-behaviour if not.
-
--}
-insertEdge : Edge e -> Graph n e -> Graph n e
-insertEdge edge =
-    Graph.update edge.from
-        (\maybeCtx ->
-            case maybeCtx of
-                Nothing ->
-                    Nothing
-
-                Just ctx ->
-                    Just { ctx | outgoing = IntDict.insert edge.to edge.label ctx.outgoing }
-        )
 
 
 {-| Simply take the outgoing label as our label for both edges
