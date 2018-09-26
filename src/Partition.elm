@@ -215,7 +215,7 @@ levelSplit : List (Graph.NodeContext n e) -> Int -> ( List n, List n ) -> ( List
 levelSplit paths distance acc =
     case paths of
         [] ->
-            empty
+            ( [], [] )
 
         ctx :: _ ->
             let
