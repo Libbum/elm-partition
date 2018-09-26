@@ -59,7 +59,8 @@ type alias LDMSolver number =
 {-| Directly partition your set by checking all possible permutations.
 This method is best used on small sets where the solution must be accurate.
 
-    bruteForce [ 4, 5, 7, 6, 8 ] == ( [ 4, 5, 6 ], [ 7, 8 ] )
+    bruteForce [ 4, 5, 7, 6, 8 ]
+    --> ( [ 4, 5, 6 ], [ 7, 8 ] )
 
 This solution is a perfect partition. Since all possible partitons must be calculated,
 this is an `O(2ᴺ)` operation. The [greedy](#greedy) method (for example) will partition faster,
@@ -84,9 +85,11 @@ into the sublist that minimises the objective at the current point in time.
 The greedy method is fast and can handle large lists, but can be quite inaccurate.
 Let's take a look at few examples:
 
-    greedy [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 2, 3, 5, 9, 12, 15 ], [ 5, 7, 11, 22 ] )
+    greedy [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ]
+    --> ( [ 2, 3, 5, 9, 12, 15 ], [ 5, 7, 11, 22 ] )
 
-    bruteForce [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ] == ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
+    bruteForce [ 22, 5, 15, 3, 9, 12, 7, 11, 5, 2 ]
+    --> ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
 
 Both of these partitions have [objective](#objective) values of `1`, meaning both partitions
 are equivalent and equally valid.
@@ -95,14 +98,16 @@ As your lists get larger the performance of the greedy solution becomes obvious.
 [bruteForce](#bruteForce) method has issues handling lists of length `23`, whereas `greedy`
 handles them near instantaneously.
 
-    greedy (List.range 0 22) == ( [ 0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21 ], [ 2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22 ] )
+    greedy (List.range 0 22)
+    --> ( [ 0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21 ], [ 2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22 ] )
 
 In fact, `List.range 0 500000` is really no problem.
 
 The downfall of this method occurs when lists are weighted in such a manner that seems fine initially
 (to the algorithm), but is toppled at the end of the list.
 
-    greedy [ 4, 5, 7, 6, 8 ] == ( [ 6, 7 ], [ 4, 5, 8 ] )
+    greedy [ 4, 5, 7, 6, 8 ]
+    --> ( [ 6, 7 ], [ 4, 5, 8 ] )
 
 -}
 greedy : List number -> Partition number
@@ -125,9 +130,12 @@ time moreso than space. In terms of optimality, the method sits between
 [bruteForce](#bruteForce) and [greedy](#greedy):
 
     seq = [8,7,6,5,4]
-    bruteForce seq |> objective == 0
-    largestDifference seq |> objective == 2
-    greedy seq |> objective == 4
+    bruteForce seq |> objective
+    --> 0
+    largestDifference seq |> objective
+    --> 2
+    greedy seq |> objective
+    --> 4
 
 -}
 largestDifference : List number -> Partition number
@@ -278,7 +286,8 @@ empty =
 
 {-| Generates all possible partitions of a given set of numbers.
 
-    allPartitions [ 3, 15 ] == [ ( [ 3, 15 ], [] ), ( [ 3 ], [ 15 ] ), ( [ 15 ], [ 3 ] ), ( [], [ 3, 15 ] ) ]
+    allPartitions [ 3, 15 ]
+    --> [ ( [ 3, 15 ], [] ), ( [ 3 ], [ 15 ] ), ( [ 15 ], [ 3 ] ), ( [], [ 3, 15 ] ) ]
 
 Note that this function scales as `O(2ᴺ)`, where `N` is the length of your list.
 
@@ -301,9 +310,11 @@ allPartitions sequence =
 {-| The objective for our partitioning is to minimise the difference between the sum of each subset.
 Mathematically stated: `min |∑S₁-∑S₂| : S₁,S₂⊂S`.
 
-    objective ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] ) == 1
+    objective ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
+    --> 1
 
-    objective ( [ 7, 3, 2 ], [ 22, 5, 15, 9, 12, 11, 5 ] ) == 67
+    objective ( [ 7, 3, 2 ], [ 22, 5, 15, 9, 12, 11, 5 ] )
+    --> 67
 
 These examples are partitions from the same set. The first is a far better solution than the second.
 
@@ -315,7 +326,8 @@ objective ( left, right ) =
 
 {-| Outputs the sum of each subset to validate the quality of a partition.
 
-    sumOfSets ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] ) == ( 45, 46 )
+    sumOfSets ( [ 22, 5, 15, 3 ], [ 9, 12, 7, 11, 5, 2 ] )
+    --> ( 45, 46 )
 
 -}
 sumOfSets : Partition number -> ( number, number )
