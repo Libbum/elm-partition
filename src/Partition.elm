@@ -145,7 +145,7 @@ largestDifference sequence =
     in
     Graph.fromNodesAndEdges (sequenceToNodes sequence) ldm.edges
         |> Graph.symmetricClosure mergeEdges
-        |> colourGraph
+        |> Graph.bfs levelSplit empty
 
 
 
@@ -205,68 +205,28 @@ kkHeuristic diff =
                 }
 
 
-{-| Select a root node and traverse the graph to identify the structure to color.
-Separate the resultant set using red/black colouring.
+{-| A breadth-first traversal visitor which separates the tree into even and odd levels.
+This is called from the `largestDifference` method once a spanning tree has been created
+from the Karmarkar-Karp Heuristic. To identify the partition, the spanning tree needs to
+be two-coloured, then separated. This is analagous to partitoning levels in a breadth-first
+search.
 -}
-colourGraph : Graph number number -> Partition number
-colourGraph graph =
-    Graph.guidedDfs Graph.alongOutgoingEdges (Graph.onDiscovery (::)) (findRoot graph) [] graph
-        |> Tuple.first
-        |> List.map (.node >> .label)
-        |> separate
-
-
-{-| Check each node in the graph for exactly two edges.
-Since our graph will be a spanning tree by the time this function
-is called, we will identify two possible root candidates.
-We take the first since it doesn't matter which direction we traverse.
--}
-findRoot : Graph number number -> List Int
-findRoot graph =
-    Graph.nodeIds graph
-        |> List.map (\node -> identifyBound node graph)
-        |> List.filterMap identity
-        |> List.take 1
-
-
-{-| Check if the current node has two connected edges.
-If so, this should be one of our 'roots' from which to traverse
-the graph.
-
-Assumes the graph is an undirected spanning tree.
-
--}
-identifyBound : Graph.NodeId -> Graph number number -> Maybe Graph.NodeId
-identifyBound node graph =
-    Graph.get node graph
-        |> Maybe.map
-            (\ctx ->
-                if IntDict.size ctx.incoming + IntDict.size ctx.outgoing == 2 then
-                    Just ctx.node.id
-
-                else
-                    Nothing
-            )
-        |> Maybe.withDefault Nothing
-
-
-{-| Split a list by red/black colouring
--}
-separate : List number -> Partition number
-separate sequence =
-    case sequence of
+levelSplit : List (Graph.NodeContext n e) -> Int -> ( List n, List n ) -> ( List n, List n )
+levelSplit paths distance acc =
+    case paths of
         [] ->
-            empty
+            ( [], [] )
 
-        [ one ] ->
-            ( [ one ], [] )
-
-        one :: two :: xs ->
+        ctx :: _ ->
             let
-                theRest =
-                    separate xs
+                ( left, right ) =
+                    acc
             in
-            ( one :: first theRest, two :: second theRest )
+            if modBy 2 distance == 0 then
+                ( ctx.node.label :: left, right )
+
+            else
+                ( left, ctx.node.label :: right )
 
 
 {-| Sort highest to lowest
