@@ -1,7 +1,8 @@
 module Partition exposing
     ( Partition
-    , bruteForce, greedy, largestDifference
+    , bruteForce, greedy, largestDifference, anytime
     , empty, allPartitions, objective, sumOfSets
+    , BST(..), completeKK, flippedIndexedComparison, inOrder, insert, prune, singleton
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -18,7 +19,7 @@ is something you require: please file a request in the issue tracker.
 
 # Methods
 
-@docs bruteForce, greedy, largestDifference
+@docs bruteForce, greedy, largestDifference, anytime
 
 
 # Utilities
@@ -156,6 +157,24 @@ largestDifference sequence =
         |> Graph.bfs levelSplit empty
 
 
+{-| The Complete Karmarkar-Karp heuristic is a so-called _anytime_
+algorithm, that will find the optimal solution in a worst-case time
+of O(2ᴺ). This method will first return an initial guess using the
+method from `largestDifference` [in O(N log N) time], then continues
+to find better solutions (if they exist), as time allows.
+-}
+anytime : List number -> Partition number
+anytime sequence =
+    let
+        root =
+            singleton <| List.sortWith flippedComparison sequence
+
+        tree =
+            completeKK root
+    in
+    empty
+
+
 
 --- Helpers
 
@@ -211,6 +230,53 @@ kkHeuristic diff =
                     | delta = ( newIdx, difference ) :: theRest
                     , edges = Edge idx1 idx2 difference :: diff.edges
                 }
+
+
+completeKK : BST (List number) -> BST (List number)
+completeKK tree =
+    case tree of
+        Empty ->
+            Empty
+
+        Leaf values Empty Empty ->
+            case values of
+                one :: two :: theRest ->
+                    if one < List.sum (two :: theRest) then
+                        let
+                            difference =
+                                abs (one - two)
+
+                            addition =
+                                one + two
+                        in
+                        tree
+                            |> insert (List.sortWith flippedComparison <| difference :: theRest)
+                            |> insert (addition :: theRest)
+                            |> completeKK
+
+                    else
+                        tree
+
+                _ ->
+                    tree
+
+        Leaf values left right ->
+            Leaf values (completeKK left) (completeKK right)
+
+
+inOrder : BST (List number) -> Maybe number -> ( List (List number), Maybe number )
+inOrder tree lowest =
+    case tree of
+        Leaf values left right ->
+            case lowest of
+                Nothing ->
+                    ( first (inOrder left lowest) ++ [ values ] ++ first (inOrder right lowest), List.head values )
+
+                Just current ->
+                    ( first (inOrder left lowest) ++ [ values ] ++ first (inOrder right lowest), lowest )
+
+        _ ->
+            ( [ [] ], Nothing )
 
 
 {-| A breadth-first traversal visitor which separates the tree into even and odd levels.
@@ -333,3 +399,47 @@ objective ( left, right ) =
 sumOfSets : Partition number -> ( number, number )
 sumOfSets ( left, right ) =
     ( List.sum <| left, List.sum <| right )
+
+
+
+--- Binary Search Tree
+
+
+{-| A quick and dirty binary search tree implementation.
+Not designed to be exhaustive, just enough to complete the
+anytime algorithm.
+
+We've exposed `Node` from the graph library, so we'll call a
+node in this tree a `Leaf`.
+
+-}
+type BST comparable
+    = Empty
+    | Leaf comparable (BST comparable) (BST comparable)
+
+
+{-| Create a BST with one value, good for quickly
+constructing root nodes.
+-}
+singleton : comparable -> BST comparable
+singleton x =
+    Leaf x Empty Empty
+
+
+{-| Insert a node into our BST.
+-}
+insert : comparable -> BST comparable -> BST comparable
+insert x tree =
+    case tree of
+        Empty ->
+            Leaf x Empty Empty
+
+        Leaf y left right ->
+            if x == y then
+                tree
+
+            else if x < y then
+                Leaf y (insert x left) right
+
+            else
+                Leaf y left (insert x right)
