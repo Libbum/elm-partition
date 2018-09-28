@@ -2,7 +2,7 @@ module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference, anytime
     , empty, allPartitions, objective, sumOfSets
-    , BST(..), completeKK, edgeBuilder, flippedIndexedComparison, inOrder, insert, leftBranch, levelSplit, mergeEdges, rightBranch, rightBranchHelper, sequenceToNodes, singleton
+    , BST(..), completeKK, edgeBuilder, flippedIndexedComparison, flippedZippedIndex, inOrder, insert, leftBranch, levelSplit, mergeEdges, pdmPartitioner, rightBranch, rightBranchHelper, sequenceToNodes, singleton, splitTree
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -182,18 +182,18 @@ to find better solutions (if they exist), as time allows.
 anytime : List number -> Result String (Anytime number)
 anytime sequence =
     let
-        root =
+        tree =
             flippedZippedIndex sequence
                 |> singleton
+                |> completeKK
 
-        ldm =
-            root |> completeKK |> leftBranch
-
-        partition =
-            buildSymmetricGraph sequence (edgeBuilder ldm)
-                |> Graph.bfs levelSplit empty
+        ( ldm, pdm ) =
+            splitTree tree
     in
-    Ok (LDM partition)
+    Ok <|
+        LDM <|
+            Graph.bfs levelSplit empty <|
+                buildSymmetricGraph sequence (edgeBuilder ldm)
 
 
 
@@ -308,12 +308,12 @@ completeKK tree =
             Empty
 
 
-inOrder : BST (List number) -> List (List number)
+inOrder : BST (List ( Int, number )) -> List (List ( Int, number ))
 inOrder tree =
     inOrderHelper tree |> List.filter (not << List.isEmpty)
 
 
-inOrderHelper : BST (List number) -> List (List number)
+inOrderHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
 inOrderHelper tree =
     case tree of
         Leaf values left right ->
@@ -321,6 +321,16 @@ inOrderHelper tree =
 
         Empty ->
             [ [] ]
+
+
+splitTree : BST (List ( Int, number )) -> ( List (List ( Int, number )), List (List ( Int, number )) )
+splitTree tree =
+    case tree of
+        Leaf values left right ->
+            ( leftBranch left ++ [ values ], inOrder right ++ [ values ] )
+
+        Empty ->
+            ( [ [] ], [ [] ] )
 
 
 leftBranch : BST (List ( Int, number )) -> List (List ( Int, number ))
@@ -356,6 +366,9 @@ rightBranchHelper tree =
             [ [] ]
 
 
+{-| This is forced for the selected problem. Needs much more
+testing to be used in general.
+-}
 edgeBuilder : List (List ( Int, number )) -> List (Edge number)
 edgeBuilder branch =
     List.map edgeBuilderHelper branch |> List.concat
@@ -372,6 +385,17 @@ edgeBuilderHelper values =
 
         _ ->
             []
+
+
+{-| This is forced for the selected problem. Cannot be used in general.
+-}
+pdmPartitioner : List (List ( Int, number )) -> Partition number
+pdmPartitioner branch =
+    let
+        pdmu =
+            List.map List.unzip branch
+    in
+    empty
 
 
 {-| A breadth-first traversal visitor which separates the tree into even and odd levels.
