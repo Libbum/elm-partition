@@ -2,7 +2,7 @@ module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference, anytime
     , empty, allPartitions, objective, sumOfSets
-    , BST(..), completeKK, flippedIndexedComparison, inOrder, insert, prune, singleton
+    , BST(..), completeKK, edgeBuilder, flippedIndexedComparison, inOrder, insert, leftBranch, levelSplit, mergeEdges, rightBranch, rightBranchHelper, sequenceToNodes, singleton
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -51,6 +51,24 @@ in the set as nodes, connected via edges which are identified here.
 -}
 type alias LDMSolver number =
     { delta : List ( Int, number ), edges : List (Edge number) }
+
+
+{-| A Result type for the anytime method.
+Initially, the job returns a `largestDifference`: `LDM` result, then
+begins to search the rest of the complete tree. Three possible (sucsessful) outcomes
+may occur at this point: A `Better` (but not optimal) solution is identified. At
+this point the identified partition will be returned and the search will continue.
+The `Optimal` solution is identified, which halts the search and returns the solution.
+Finally, the search continues through the rest of the tree, not finding a better
+solution to the ones already retuned. If this is the case, the search concludes `Exhausted`
+at O(2ᴺ) time, retuning nothing. This is not a failure though, since `LDM` or `Better` has
+already been retuned.
+-}
+type Anytime number
+    = LDM (Partition number)
+    | Better (Partition number)
+    | Optimal (Partition number)
+    | Exhausted
 
 
 
@@ -143,8 +161,7 @@ largestDifference : List number -> Partition number
 largestDifference sequence =
     let
         initDelta =
-            List.indexedMap Tuple.pair sequence
-                |> List.sortWith flippedIndexedComparison
+            flippedZippedIndex sequence
 
         ldm =
             kkHeuristic
@@ -152,8 +169,7 @@ largestDifference sequence =
                 , delta = initDelta
                 }
     in
-    Graph.fromNodesAndEdges (sequenceToNodes sequence) ldm.edges
-        |> Graph.symmetricClosure mergeEdges
+    buildSymmetricGraph sequence ldm.edges
         |> Graph.bfs levelSplit empty
 
 
@@ -163,20 +179,37 @@ of O(2ᴺ). This method will first return an initial guess using the
 method from `largestDifference` [in O(N log N) time], then continues
 to find better solutions (if they exist), as time allows.
 -}
-anytime : List number -> Partition number
+anytime : List number -> Result String (Anytime number)
 anytime sequence =
     let
         root =
-            singleton <| List.sortWith flippedComparison sequence
+            flippedZippedIndex sequence
+                |> singleton
 
-        tree =
-            completeKK root
+        ldm =
+            root |> completeKK |> leftBranch
+
+        partition =
+            buildSymmetricGraph sequence (edgeBuilder ldm)
+                |> Graph.bfs levelSplit empty
     in
-    empty
+    Ok (LDM partition)
 
 
 
 --- Helpers
+
+
+flippedZippedIndex : List number -> List ( Int, number )
+flippedZippedIndex sequence =
+    List.indexedMap Tuple.pair sequence
+        |> List.sortWith flippedIndexedComparison
+
+
+buildSymmetricGraph : List number -> List (Edge number) -> Graph number number
+buildSymmetricGraph sequence edges =
+    Graph.fromNodesAndEdges (sequenceToNodes sequence) edges
+        |> Graph.symmetricClosure mergeEdges
 
 
 {-| Starting with an empty partition, and a list sorted higest
@@ -232,26 +265,34 @@ kkHeuristic diff =
                 }
 
 
-completeKK : BST (List number) -> BST (List number)
+completeKK : BST (List ( Int, number )) -> BST (List ( Int, number ))
 completeKK tree =
     case tree of
-        Empty ->
-            Empty
-
         Leaf values Empty Empty ->
             case values of
-                one :: two :: theRest ->
-                    if one < List.sum (two :: theRest) then
+                ( idx1, one ) :: ( idx2, two ) :: theRest ->
+                    if one < List.sum (two :: List.map second theRest) then
                         let
                             difference =
                                 abs (one - two)
 
                             addition =
                                 one + two
+
+                            newIdx =
+                                if one > two then
+                                    idx1
+
+                                else
+                                    idx2
                         in
                         tree
-                            |> insert (List.sortWith flippedComparison <| difference :: theRest)
-                            |> insert (addition :: theRest)
+                            |> insert
+                                (( newIdx, difference )
+                                    :: theRest
+                                    |> List.sortWith flippedIndexedComparison
+                                )
+                            |> insert (( newIdx, addition ) :: theRest)
                             |> completeKK
 
                     else
@@ -263,20 +304,74 @@ completeKK tree =
         Leaf values left right ->
             Leaf values (completeKK left) (completeKK right)
 
+        Empty ->
+            Empty
 
-inOrder : BST (List number) -> Maybe number -> ( List (List number), Maybe number )
-inOrder tree lowest =
+
+inOrder : BST (List number) -> List (List number)
+inOrder tree =
+    inOrderHelper tree |> List.filter (not << List.isEmpty)
+
+
+inOrderHelper : BST (List number) -> List (List number)
+inOrderHelper tree =
     case tree of
         Leaf values left right ->
-            case lowest of
-                Nothing ->
-                    ( first (inOrder left lowest) ++ [ values ] ++ first (inOrder right lowest), List.head values )
+            inOrder left ++ [ values ] ++ inOrder right
 
-                Just current ->
-                    ( first (inOrder left lowest) ++ [ values ] ++ first (inOrder right lowest), lowest )
+        Empty ->
+            [ [] ]
+
+
+leftBranch : BST (List ( Int, number )) -> List (List ( Int, number ))
+leftBranch tree =
+    leftBranchHelper tree |> List.filter (not << List.isEmpty)
+
+
+leftBranchHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
+leftBranchHelper tree =
+    case tree of
+        Leaf values left right ->
+            leftBranchHelper left ++ [ values ]
+
+        Empty ->
+            [ [] ]
+
+
+rightBranch : BST (List ( Int, number )) -> List (List ( Int, number ))
+rightBranch tree =
+    rightBranchHelper tree |> List.filter (not << List.isEmpty)
+
+
+{-| Notice this actually calls leftBranchHelper inside since we still want to look at the left first.
+This is OK for our current example case, but it's probably going to fall down later.
+-}
+rightBranchHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
+rightBranchHelper tree =
+    case tree of
+        Leaf values left right ->
+            leftBranchHelper right ++ [ values ]
+
+        Empty ->
+            [ [] ]
+
+
+edgeBuilder : List (List ( Int, number )) -> List (Edge number)
+edgeBuilder branch =
+    List.map edgeBuilderHelper branch |> List.concat
+
+
+edgeBuilderHelper : List ( Int, number ) -> List (Edge number)
+edgeBuilderHelper values =
+    case values of
+        ( xi, x ) :: ( yi, y ) :: ( zi, z ) :: [] ->
+            [ Edge xi yi (abs (x - y)), Edge xi zi (abs (x - z)) ]
+
+        ( xi, x ) :: ( yi, y ) :: theRest ->
+            [ Edge xi yi (abs (x - y)) ]
 
         _ ->
-            ( [ [] ], Nothing )
+            []
 
 
 {-| A breadth-first traversal visitor which separates the tree into even and odd levels.
