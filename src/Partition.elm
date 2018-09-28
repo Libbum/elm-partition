@@ -1,7 +1,8 @@
 module Partition exposing
     ( Partition
-    , bruteForce, greedy, largestDifference
+    , bruteForce, greedy, largestDifference, anytime
     , empty, allPartitions, objective, sumOfSets
+    , BST(..), completeKK, edgeBuilder, flippedIndexedComparison, flippedZippedIndex, inOrder, insert, leftBranch, levelSplit, mergeEdges, pdmPartitioner, rightBranch, rightBranchHelper, sequenceToNodes, singleton, splitTree
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -18,7 +19,7 @@ is something you require: please file a request in the issue tracker.
 
 # Methods
 
-@docs bruteForce, greedy, largestDifference
+@docs bruteForce, greedy, largestDifference, anytime
 
 
 # Utilities
@@ -50,6 +51,24 @@ in the set as nodes, connected via edges which are identified here.
 -}
 type alias LDMSolver number =
     { delta : List ( Int, number ), edges : List (Edge number) }
+
+
+{-| A Result type for the anytime method.
+Initially, the job returns a `largestDifference`: `LDM` result, then
+begins to search the rest of the complete tree. Three possible (sucsessful) outcomes
+may occur at this point: A `Better` (but not optimal) solution is identified. At
+this point the identified partition will be returned and the search will continue.
+The `Optimal` solution is identified, which halts the search and returns the solution.
+Finally, the search continues through the rest of the tree, not finding a better
+solution to the ones already retuned. If this is the case, the search concludes `Exhausted`
+at O(2ᴺ) time, retuning nothing. This is not a failure though, since `LDM` or `Better` has
+already been retuned.
+-}
+type Anytime number
+    = LDM (Partition number)
+    | Better (Partition number)
+    | Optimal (Partition number)
+    | Exhausted
 
 
 
@@ -142,8 +161,7 @@ largestDifference : List number -> Partition number
 largestDifference sequence =
     let
         initDelta =
-            List.indexedMap Tuple.pair sequence
-                |> List.sortWith flippedIndexedComparison
+            flippedZippedIndex sequence
 
         ldm =
             kkHeuristic
@@ -151,13 +169,47 @@ largestDifference sequence =
                 , delta = initDelta
                 }
     in
-    Graph.fromNodesAndEdges (sequenceToNodes sequence) ldm.edges
-        |> Graph.symmetricClosure mergeEdges
+    buildSymmetricGraph sequence ldm.edges
         |> Graph.bfs levelSplit empty
+
+
+{-| The Complete Karmarkar-Karp heuristic is a so-called _anytime_
+algorithm, that will find the optimal solution in a worst-case time
+of O(2ᴺ). This method will first return an initial guess using the
+method from `largestDifference` [in O(N log N) time], then continues
+to find better solutions (if they exist), as time allows.
+-}
+anytime : List number -> Result String (Anytime number)
+anytime sequence =
+    let
+        tree =
+            flippedZippedIndex sequence
+                |> singleton
+                |> completeKK
+
+        ( ldm, pdm ) =
+            splitTree tree
+    in
+    Ok <|
+        LDM <|
+            Graph.bfs levelSplit empty <|
+                buildSymmetricGraph sequence (edgeBuilder ldm)
 
 
 
 --- Helpers
+
+
+flippedZippedIndex : List number -> List ( Int, number )
+flippedZippedIndex sequence =
+    List.indexedMap Tuple.pair sequence
+        |> List.sortWith flippedIndexedComparison
+
+
+buildSymmetricGraph : List number -> List (Edge number) -> Graph number number
+buildSymmetricGraph sequence edges =
+    Graph.fromNodesAndEdges (sequenceToNodes sequence) edges
+        |> Graph.symmetricClosure mergeEdges
 
 
 {-| Starting with an empty partition, and a list sorted higest
@@ -211,6 +263,139 @@ kkHeuristic diff =
                     | delta = ( newIdx, difference ) :: theRest
                     , edges = Edge idx1 idx2 difference :: diff.edges
                 }
+
+
+completeKK : BST (List ( Int, number )) -> BST (List ( Int, number ))
+completeKK tree =
+    case tree of
+        Leaf values Empty Empty ->
+            case values of
+                ( idx1, one ) :: ( idx2, two ) :: theRest ->
+                    if one < List.sum (two :: List.map second theRest) then
+                        let
+                            difference =
+                                abs (one - two)
+
+                            addition =
+                                one + two
+
+                            newIdx =
+                                if one > two then
+                                    idx1
+
+                                else
+                                    idx2
+                        in
+                        tree
+                            |> insert
+                                (( newIdx, difference )
+                                    :: theRest
+                                    |> List.sortWith flippedIndexedComparison
+                                )
+                            |> insert (( newIdx, addition ) :: theRest)
+                            |> completeKK
+
+                    else
+                        tree
+
+                _ ->
+                    tree
+
+        Leaf values left right ->
+            Leaf values (completeKK left) (completeKK right)
+
+        Empty ->
+            Empty
+
+
+inOrder : BST (List ( Int, number )) -> List (List ( Int, number ))
+inOrder tree =
+    inOrderHelper tree |> List.filter (not << List.isEmpty)
+
+
+inOrderHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
+inOrderHelper tree =
+    case tree of
+        Leaf values left right ->
+            inOrder left ++ [ values ] ++ inOrder right
+
+        Empty ->
+            [ [] ]
+
+
+splitTree : BST (List ( Int, number )) -> ( List (List ( Int, number )), List (List ( Int, number )) )
+splitTree tree =
+    case tree of
+        Leaf values left right ->
+            ( leftBranch left ++ [ values ], inOrder right ++ [ values ] )
+
+        Empty ->
+            ( [ [] ], [ [] ] )
+
+
+leftBranch : BST (List ( Int, number )) -> List (List ( Int, number ))
+leftBranch tree =
+    leftBranchHelper tree |> List.filter (not << List.isEmpty)
+
+
+leftBranchHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
+leftBranchHelper tree =
+    case tree of
+        Leaf values left right ->
+            leftBranchHelper left ++ [ values ]
+
+        Empty ->
+            [ [] ]
+
+
+rightBranch : BST (List ( Int, number )) -> List (List ( Int, number ))
+rightBranch tree =
+    rightBranchHelper tree |> List.filter (not << List.isEmpty)
+
+
+{-| Notice this actually calls leftBranchHelper inside since we still want to look at the left first.
+This is OK for our current example case, but it's probably going to fall down later.
+-}
+rightBranchHelper : BST (List ( Int, number )) -> List (List ( Int, number ))
+rightBranchHelper tree =
+    case tree of
+        Leaf values left right ->
+            leftBranchHelper right ++ [ values ]
+
+        Empty ->
+            [ [] ]
+
+
+{-| This is forced for the selected problem. Needs much more
+testing to be used in general.
+-}
+edgeBuilder : List (List ( Int, number )) -> List (Edge number)
+edgeBuilder branch =
+    List.map edgeBuilderHelper branch |> List.concat
+
+
+edgeBuilderHelper : List ( Int, number ) -> List (Edge number)
+edgeBuilderHelper values =
+    case values of
+        ( xi, x ) :: ( yi, y ) :: ( zi, z ) :: [] ->
+            [ Edge xi yi (abs (x - y)), Edge xi zi (abs (x - z)) ]
+
+        ( xi, x ) :: ( yi, y ) :: theRest ->
+            [ Edge xi yi (abs (x - y)) ]
+
+        _ ->
+            []
+
+
+{-| This is forced for the selected problem. Cannot be used in general.
+-}
+pdmPartitioner : List (List ( Int, number )) -> Partition number
+pdmPartitioner branch =
+    let
+        pdmu =
+            List.map List.unzip branch
+    in
+    empty
 
 
 {-| A breadth-first traversal visitor which separates the tree into even and odd levels.
@@ -333,3 +518,47 @@ objective ( left, right ) =
 sumOfSets : Partition number -> ( number, number )
 sumOfSets ( left, right ) =
     ( List.sum <| left, List.sum <| right )
+
+
+
+--- Binary Search Tree
+
+
+{-| A quick and dirty binary search tree implementation.
+Not designed to be exhaustive, just enough to complete the
+anytime algorithm.
+
+We've exposed `Node` from the graph library, so we'll call a
+node in this tree a `Leaf`.
+
+-}
+type BST comparable
+    = Empty
+    | Leaf comparable (BST comparable) (BST comparable)
+
+
+{-| Create a BST with one value, good for quickly
+constructing root nodes.
+-}
+singleton : comparable -> BST comparable
+singleton x =
+    Leaf x Empty Empty
+
+
+{-| Insert a node into our BST.
+-}
+insert : comparable -> BST comparable -> BST comparable
+insert x tree =
+    case tree of
+        Empty ->
+            Leaf x Empty Empty
+
+        Leaf y left right ->
+            if x == y then
+                tree
+
+            else if x < y then
+                Leaf y (insert x left) right
+
+            else
+                Leaf y left (insert x right)
