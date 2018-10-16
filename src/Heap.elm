@@ -1,29 +1,115 @@
 module Heap exposing (Heap, deleteMin, empty, findMin, insert, isEmpty)
 
+{-| A min-heap representation, used for Depth First Searching in the anytime algorithm.
+May be extended to be used in other methods in the future.
+-}
+
 import Array exposing (Array)
 
 
+
+--- Type and Indexers
+
+
+{-| Internal representation is an Array, which we operate on and sort.
+-}
 type Heap a
     = Heap (Array a)
 
 
+{-| Identify the index of the left child of the current node in the array.
+-}
 leftIdx i =
     2 * i + 1
 
 
+{-| Identify the index of the right child of the current node in the array.
+-}
 rightIdx i =
     2 * i + 2
 
 
+{-| Identify the index of the parent of the current node in the array.
+-}
 parentIdx i =
     (i - 1) // 2
 
 
+
+--- Exposed functions
+
+
+{-| An empty Heap constructor. Equivalent to an empty array constructor under the hood.
+-}
+empty : Heap comparable
+empty =
+    Heap Array.empty
+
+
+{-| Check if the Heap is empty or not.
+-}
+isEmpty : Heap comparable -> Bool
+isEmpty (Heap array) =
+    Array.isEmpty array
+
+
+{-| Get the minimum value in the heap. Since this is a min-heap, we can happily
+grab the first value in the array.
+-}
+findMin : Heap comparable -> Maybe comparable
+findMin (Heap array) =
+    Array.get 0 array
+
+
+{-| Add a value to the heap. We initially append it to the end of the array.
+If it's meant to live at that position then the insertion is O(1).
+if however, it needs to move to some other position due to its size, it
+will bubble up higher in the array until such time as it reaches equilibrium.
+Worst case therefore, this operation is O(log N).
+-}
+insert : comparable -> Heap comparable -> Heap comparable
+insert x (Heap array) =
+    array
+        |> addToEnd x
+        |> bubbleUp (Array.length array)
+        |> Heap
+
+
+{-| Removes the smallest value from the heap. This pops element 0 (i.e. the smallest value),
+moves the lastElement (the largest value) to the root, then bubbles down to reorder the heap.
+-}
+deleteMin : Heap comparable -> Maybe ( comparable, Heap comparable )
+deleteMin (Heap array) =
+    case removeFromEnd array of
+        Nothing ->
+            Nothing
+
+        Just ( lastElement, choppedArray ) ->
+            let
+                minElement =
+                    unsafeGet 0 array
+
+                newArray =
+                    choppedArray
+                        |> Array.set 0 lastElement
+                        |> bubbleDown 0
+            in
+            Just ( minElement, Heap newArray )
+
+
+
+--- Helper functions
+
+
+{-| Append a value to the end of the array.
+-}
 addToEnd : a -> Array a -> Array a
 addToEnd =
     Array.push
 
 
+{-| Separate the value at the end from the array.
+-}
 removeFromEnd : Array a -> Maybe ( a, Array a )
 removeFromEnd array =
     let
@@ -38,144 +124,70 @@ removeFromEnd array =
             Just ( last, Array.slice 0 -1 array )
 
 
-justGet : Int -> Array a -> a
-justGet i array =
+{-| An unsafe method to get values from the array.
+-}
+unsafeGet : Int -> Array a -> a
+unsafeGet i array =
     case Array.get i array of
         Just x ->
             x
 
         Nothing ->
-            Debug.todo "justGet"
+            Debug.todo "handle this"
 
 
+{-| Swap data between two locations in the array.
+-}
 swap : Int -> Int -> Array a -> Array a
-swap i j array =
+swap idx1 idx2 array =
     let
-        ai =
-            justGet i array
+        data1 =
+            unsafeGet idx1 array
 
-        aj =
-            justGet j array
+        data2 =
+            unsafeGet idx2 array
     in
-    array |> Array.set i aj |> Array.set j ai
+    array |> Array.set idx1 data2 |> Array.set idx2 data1
 
 
-empty : Heap comparable
-empty =
-    Heap Array.empty
-
-
-isEmpty : Heap comparable -> Bool
-isEmpty (Heap array) =
-    Array.isEmpty array
-
-
-findMin : Heap comparable -> Maybe comparable
-findMin (Heap array) =
-    Array.get 0 array
-
-
-insert : comparable -> Heap comparable -> Heap comparable
-insert x (Heap array) =
-    array
-        |> addToEnd x
-        |> bubbleUp (Array.length array)
-        |> Heap
-
-
-deleteMin : Heap comparable -> Maybe ( comparable, Heap comparable )
-deleteMin (Heap array) =
-    case removeFromEnd array of
-        Nothing ->
-            Nothing
-
-        Just ( lastElement, choppedArray ) ->
-            let
-                minElement =
-                    justGet 0 array
-            in
-            let
-                newArray =
-                    choppedArray
-                        |> Array.set 0 lastElement
-                        |> bubbleDown 0
-            in
-            Just ( minElement, Heap newArray )
-
-
+{-| Move value at a certain index up the array in relation to the heap's sorting requirements.
+-}
 bubbleUp : Int -> Array comparable -> Array comparable
-bubbleUp i array =
+bubbleUp idx array =
     let
         child =
-            justGet i array
+            unsafeGet idx array
 
         parent =
-            justGet (parentIdx i) array
+            unsafeGet (parentIdx idx) array
     in
     if parent <= child then
         array
 
     else
-        array |> swap i (parentIdx i) |> bubbleUp (parentIdx i)
+        array |> swap idx (parentIdx idx) |> bubbleUp (parentIdx idx)
 
 
+{-| Move value at a certain index down the array in relation to the heap's sorting requirements.
+-}
 bubbleDown : Int -> Array comparable -> Array comparable
-bubbleDown i array =
+bubbleDown idx array =
     let
         n =
             Array.length array
 
-        smaller j acc =
-            if j < n && justGet j array < justGet acc array then
-                j
+        smaller tidx acc =
+            if tidx < n && unsafeGet tidx array < unsafeGet acc array then
+                tidx
 
             else
                 acc
 
         smallest =
-            i |> smaller (leftIdx i) |> smaller (rightIdx i)
+            idx |> smaller (leftIdx idx) |> smaller (rightIdx idx)
     in
-    if i == smallest then
+    if idx == smallest then
         array
 
     else
-        array |> swap i smallest |> bubbleDown smallest
-
-
-
-{-
-
-   Verbose Implementation:
-
-   bubbleDown i array =
-
-     let swapAndRecurse j = array |> swap i j |> bubbleDown j in
-     let bubbleDownLeft () = swapAndRecurse (leftIdx i) in
-     let bubbleDownRight () = swapAndRecurse (rightIdx i) in
-
-     if leftIdx i >= Array.length array then
-       array
-
-     else if rightIdx i >= Array.length array then
-       let
-         this  = justGet i array
-         left  = justGet (leftIdx i) array
-       in
-       if this <= left
-         then array
-         else bubbleDownLeft ()
-
-     else
-       let
-         this  = justGet i array
-         left  = justGet (leftIdx i) array
-         right = justGet (rightIdx i) array
-       in
-       if this <= left && this <= right then array
-       else if left < this && this <= right then bubbleDownLeft ()
-       else if right < this && this <= left then bubbleDownRight ()
-       else {- left <= this && right <= this -}
-         if left <= right
-           then bubbleDownLeft ()
-           else bubbleDownRight ()
--}
+        array |> swap idx smallest |> bubbleDown smallest
