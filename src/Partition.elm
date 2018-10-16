@@ -2,7 +2,7 @@ module Partition exposing
     ( Partition
     , bruteForce, greedy, largestDifference, anytime
     , empty, allPartitions, objective, sumOfSets
-    , BST(..), completeKK, edgeBuilder, flippedIndexedComparison, flippedZippedIndex, inOrder, insert, leftBranch, levelSplit, mergeEdges, pdmPartitioner, rightBranch, rightBranchHelper, sequenceToNodes, singleton, splitTree
+    , BST(..), completeKK, dfs, edgeBuilder, flippedIndexedComparison, flippedZippedIndex, inOrder, insert, leftBranch, levelSplit, listSize, mergeEdges, pdmPartitioner, removeLargest, rightBranch, rightBranchHelper, sequenceToNodes, shouldGrow, singleton, splitTree
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -29,6 +29,7 @@ is something you require: please file a request in the issue tracker.
 -}
 
 import Graph exposing (Edge, Graph, Node)
+import Heap exposing (Heap)
 import IntDict
 import List
 import List.Extra exposing (minimumBy, scanl1)
@@ -265,6 +266,9 @@ kkHeuristic diff =
                 }
 
 
+{-| TODO: Looks like the DFS will be the best general purpose algo for the rtree building.
+See CILAMCE\_01.pdf
+-}
 completeKK : BST (List ( Int, number )) -> BST (List ( Int, number ))
 completeKK tree =
     case tree of
@@ -396,6 +400,76 @@ pdmPartitioner branch =
             List.map List.unzip branch
     in
     empty
+
+
+
+--- DFS attempt
+
+
+dfs : ( Heap (List number), number ) -> ( Heap (List number), number )
+dfs ( nr, za ) =
+    if listSize nr == 1 then
+        case removeLargest nr of
+            Just value ->
+                ( nr, value )
+
+            Nothing ->
+                Debug.todo "Nothing in remove largest"
+
+    else
+        let
+            sequence =
+                Heap.findMin nr |> Maybe.withDefault []
+
+            node =
+                case sequence of
+                    one :: two :: theRest ->
+                        List.sortWith flippedComparison (one - two :: theRest)
+
+                    _ ->
+                        Debug.todo "Small list, shouldn't exist"
+        in
+        if shouldGrow node za then
+            dfs ( nr |> Heap.insert node, za )
+
+        else
+            ( nr, za )
+
+
+listSize : Heap (List number) -> Int
+listSize heap =
+    Heap.findMin heap |> Maybe.withDefault [] |> List.length
+
+
+removeLargest : Heap (List number) -> Maybe number
+removeLargest heap =
+    Heap.findMin heap |> Maybe.andThen List.head
+
+
+{-| zi >= 0 will give us the best value of this branch,
+but this may not be helpful at this point. So for the moment it's dumped.
+This is `prune`, but there's no reason to only ever `not prune`.
+-}
+shouldGrow : List number -> number -> Bool
+shouldGrow sequence currentBest =
+    let
+        zi =
+            case sequence of
+                one :: theRest ->
+                    one - List.sum theRest
+
+                _ ->
+                    -1
+    in
+    if zi >= currentBest then
+        False
+
+    else
+        True
+
+
+
+---
 
 
 {-| A breadth-first traversal visitor which separates the tree into even and odd levels.
