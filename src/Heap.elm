@@ -78,23 +78,23 @@ insert x (Heap array) =
 {-| Removes the smallest value from the heap. This pops element 0 (i.e. the smallest value),
 moves the lastElement (the largest value) to the root, then bubbles down to reorder the heap.
 -}
-deleteMin : Heap comparable -> Maybe ( comparable, Heap comparable )
+deleteMin : Heap comparable -> ( Maybe comparable, Heap comparable )
 deleteMin (Heap array) =
     case removeFromEnd array of
         Nothing ->
-            Nothing
+            ( Nothing, Heap array )
 
         Just ( lastElement, choppedArray ) ->
             let
                 minElement =
-                    unsafeGet 0 array
+                    Array.get 0 array
 
                 newArray =
                     choppedArray
                         |> Array.set 0 lastElement
                         |> bubbleDown 0
             in
-            Just ( minElement, Heap newArray )
+            ( minElement, Heap newArray )
 
 
 
@@ -124,30 +124,20 @@ removeFromEnd array =
             Just ( last, Array.slice 0 -1 array )
 
 
-{-| An unsafe method to get values from the array.
--}
-unsafeGet : Int -> Array a -> a
-unsafeGet i array =
-    case Array.get i array of
-        Just x ->
-            x
-
-        Nothing ->
-            Debug.todo "handle this"
-
-
 {-| Swap data between two locations in the array.
 -}
 swap : Int -> Int -> Array a -> Array a
 swap idx1 idx2 array =
     let
-        data1 =
-            unsafeGet idx1 array
-
-        data2 =
-            unsafeGet idx2 array
+        doSwap val1 val2 =
+            array
+                |> Array.set idx1 val2
+                |> Array.set idx2 val1
     in
-    array |> Array.set idx1 data2 |> Array.set idx2 data1
+    Maybe.map2 doSwap
+        (Array.get idx1 array)
+        (Array.get idx2 array)
+        |> Maybe.withDefault array
 
 
 {-| Move value at a certain index up the array in relation to the heap's sorting requirements.
@@ -156,16 +146,21 @@ bubbleUp : Int -> Array comparable -> Array comparable
 bubbleUp idx array =
     let
         child =
-            unsafeGet idx array
+            Array.get idx array
 
         parent =
-            unsafeGet (parentIdx idx) array
+            Array.get (parentIdx idx) array
     in
-    if parent <= child then
-        array
+    case Maybe.map2 (<=) parent child of
+        Just equilibrium ->
+            if equilibrium then
+                array
 
-    else
-        array |> swap idx (parentIdx idx) |> bubbleUp (parentIdx idx)
+            else
+                array |> swap idx (parentIdx idx) |> bubbleUp (parentIdx idx)
+
+        Nothing ->
+            array
 
 
 {-| Move value at a certain index down the array in relation to the heap's sorting requirements.
@@ -177,11 +172,16 @@ bubbleDown idx array =
             Array.length array
 
         smaller tidx acc =
-            if tidx < n && unsafeGet tidx array < unsafeGet acc array then
-                tidx
+            case Maybe.map2 (<) (Array.get tidx array) (Array.get acc array) of
+                Just logic ->
+                    if tidx < n && logic then
+                        tidx
 
-            else
-                acc
+                    else
+                        acc
+
+                Nothing ->
+                    acc
 
         smallest =
             idx |> smaller (leftIdx idx) |> smaller (rightIdx idx)
