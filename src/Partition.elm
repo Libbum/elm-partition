@@ -1,7 +1,8 @@
 module Partition exposing
-    ( Partition
+    ( Partition, KPartition
     , bruteForce, greedy, largestDifference
-    , empty, allPartitions, objective, sumOfSets
+    , greedyK
+    , empty, allPartitions, objective, sumOfSets, objectiveK, sumOfKSets
     )
 
 {-| The partition problem is a mathematically [NP-complete](https://en.wikipedia.org/wiki/NP-completeness) task
@@ -13,7 +14,7 @@ is something you require: please file a request in the issue tracker.
 
 # Types
 
-@docs Partition
+@docs Partition, KPartition
 
 
 # Methods
@@ -21,9 +22,20 @@ is something you require: please file a request in the issue tracker.
 @docs bruteForce, greedy, largestDifference
 
 
+# Extended Methods
+
+Partitions are generally defined as a separation of one set into two, however there are times
+when further separation into `k > 2` sets is needed. Recursively calling the above methods can
+further split lists, although most of the time this is an expensive way of doing things.
+
+Not all `k == 2` methods can be extended to the `k > 2` case, and some are `k > 2` only.
+
+@docs greedyK
+
+
 # Utilities
 
-@docs empty, allPartitions, objective, sumOfSets
+@docs empty, allPartitions, objective, sumOfSets, objectiveK, sumOfKSets
 
 -}
 
@@ -38,10 +50,17 @@ import Tuple exposing (first, second)
 --- Type Aliases
 
 
-{-| The resultant partition: two balanced subsets of the original set
+{-| The resultant partition: two balanced subsets of the original set.
 -}
 type alias Partition number =
     ( List number, List number )
+
+
+{-| A list of resultant partitions from an Extended method, with `k` balanced
+subset of the original set.
+-}
+type alias KPartition number =
+    List (List number)
 
 
 {-| The LDM method requires us to reduce a list, whilst keeping track of positions
@@ -157,6 +176,30 @@ largestDifference sequence =
 
 
 
+--- Extended
+
+
+{-| The [greedy](#greedy) method extended to allow `k` partitions of the original set.
+
+    greedyK [1,2,3,4,5,6] 3
+    --> [[1,6], [2,5], [3,4]]
+
+Will return an empty partition if `k <= 0`
+
+    greedyK [1,2,3,4,5,6] -1
+    --> []
+
+-}
+greedyK : List number -> Int -> KPartition number
+greedyK sequence k =
+    if k > 0 then
+        greedyRecurseK (List.sortWith flippedComparison sequence) k (List.repeat k [])
+
+    else
+        []
+
+
+
 --- Helpers
 
 
@@ -176,6 +219,50 @@ greedyRecurse ( left, right ) sorted =
 
             else
                 greedyRecurse ( left, x :: right ) xs
+
+
+{-| Starting with a list sorted highest to lowest, the number of partitions to create `k`,
+and an empty `KPartition`: take the `k` largest elements and place them into the subsets
+which currently have the lowest sum.
+-}
+greedyRecurseK : List number -> Int -> KPartition number -> KPartition number
+greedyRecurseK sorted k partitions =
+    case sorted of
+        [] ->
+            partitions
+
+        _ ->
+            let
+                kLargest =
+                    List.take k sorted
+            in
+            partitions
+                |> List.indexedMap (\idx lst -> ( idx, List.sum lst ))
+                |> List.sortBy Tuple.second
+                |> List.map Tuple.first
+                |> List.map (\idx -> List.Extra.getAt idx kLargest)
+                |> List.map2 maybeGrow partitions
+                |> greedyRecurseK (List.drop k sorted) k
+
+
+{-| A helper for `greedyRecurseK` which only grows a list
+if we have a value to add to it. This is useful to ignore
+edge cases when the length of `sequence` is less than `k`.
+
+    List.take 5 [ 1, 2, 3 ] == [ 1, 2, 3 ]
+
+Later, when we try and take values from non-existent indexes
+we simply ignore the result.
+
+-}
+maybeGrow : List number -> Maybe number -> List number
+maybeGrow lst value =
+    case value of
+        Just x ->
+            x :: lst
+
+        Nothing ->
+            lst
 
 
 {-| The workhorse of the LDM method. Identify Delta whilst building a
@@ -333,3 +420,58 @@ objective ( left, right ) =
 sumOfSets : Partition number -> ( number, number )
 sumOfSets ( left, right ) =
     ( List.sum <| left, List.sum <| right )
+
+
+{-| The objective for our partitioning is to minimise the difference between the sum of each subset.
+Mathematically stated: `minₘ,ₙ |∑Sₘ-∑Sₙ| : Sₘ,Sₙ⊂S`.
+
+    objectiveK [[5,7], [6,8], [1,6]]
+    --> Just 2
+
+-}
+objectiveK : KPartition number -> Maybe number
+objectiveK partitions =
+    let
+        objectives =
+            partitions
+                |> sumOfKSets
+                |> combPairs
+                |> List.map (\l -> Maybe.map (\a -> abs (Tuple.first a - Tuple.second a)) l)
+    in
+    objectives |> List.foldr foldrValues [] |> List.minimum
+
+
+{-| Helper for objectiveK. Unwraps the maybes in a list such that we
+can identify the minimum ... which gets wrapped back into a maybe.
+TODO: Clean this up.
+-}
+foldrValues : Maybe a -> List a -> List a
+foldrValues item list =
+    case item of
+        Nothing ->
+            list
+
+        Just v ->
+            v :: list
+
+
+{-| Build a combination list to help identify the absolute minimum objective.
+TODO: This is the laziest way to get this done. Implement a more efficient version.
+-}
+combPairs : List number -> List (Maybe ( number, number ))
+combPairs lst =
+    lst
+        |> List.Extra.subsequences
+        |> List.filter (\l -> List.length l == 2)
+        |> List.map (\l -> Maybe.map2 Tuple.pair (List.head l) (List.Extra.last l))
+
+
+{-| Outputs the sum of each `k` subset to validate the quality of an extended partition.
+
+    sumOfKSets [ [1 , 6 ], [ 2, 5 ], [ 3, 4 ] ]
+    --> [ 7, 7, 7 ]
+
+-}
+sumOfKSets : KPartition number -> List number
+sumOfKSets =
+    List.map List.sum
